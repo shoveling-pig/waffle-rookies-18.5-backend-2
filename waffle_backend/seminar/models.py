@@ -12,10 +12,11 @@ class Seminar(models.Model):
 
 # Mapping Table : User-Seminar
 class UserSeminar(models.Model):
-    user = models.ForeignKey(User, null=True, related_name='userseminars', on_delete=models.CASCADE)
-    seminar = models.ForeignKey(Seminar, null=True, related_name='userseminars', on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    seminar = models.ForeignKey(Seminar, on_delete=models.CASCADE)
     role = models.CharField(max_length=500)
-    is_active = models.BooleanField() # 확실 X
-    dropped_at = models.DateTimeField(null=True) # 확실 X
+    is_active = models.BooleanField(default=True)
+    joined_at = models.DateTimeField(null=True)
+    dropped_at = models.DateTimeField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_At = models.DateTimeField(auto_now=True)

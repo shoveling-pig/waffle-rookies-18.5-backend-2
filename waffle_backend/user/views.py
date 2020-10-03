@@ -33,10 +33,22 @@ class UserViewSet(viewsets.GenericViewSet):
             return Response({"error": "A user with that username already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
         if request.data.get[role] == 'participant':
-            profile = ParticipantProfile(user=user, university=request.data.get[university])
+            university = request.data.get('university')
+            accepted = request.data.get('accpeted')
+            if university is None:
+                university = ""
+            if accepted is None :
+                accepted = True
+            profile = ParticipantProfile(user=user, university=university, accepted=accepted)
             profile.save()
         elif request.data.get[role] == 'instructor':
-            profile = InstructorProfile(user=user, company=request.data.get[company], year=request.data.get[year])
+            company = request.data.get('company')
+            year = request.data.get('year')
+            if company is None:
+                company = ""
+            if (not year.isdigit()) or (year<0):
+                return Response({"error": "Year should be zero or positive integer."}, status=status.HTTP_400_BAD_REQUEST)
+            profile = InstructorProfile(user=user, company=company, year=year)
             profile.save()
         else:
             return Response({"error": "Your role is not valid."}, status=status.HTTP_400_BAD_REQUEST)
@@ -83,11 +95,13 @@ class UserViewSet(viewsets.GenericViewSet):
 
         userseminar = UserSeminar.objects.filter(user=user)
         if userseminar.role == 'participant':
-            if not request.data.get['university']:
+            if not request.data.get('university') or (request.data.get('university') is '\0'):
                 request.data.get['university'] = ""
         elif userseminar.role == 'instructor':
-            if not request.data.get['company']:
+            if not request.data.get['company'] or (request.data.get['company'] is '\0'):
                 request.data.get['company'] = ""
+            if (not request.data.get('year').isdigit()) or (request.data.get('year')<0):
+                return Response({"error": "Year should be zero or positive integer."}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -100,8 +114,10 @@ class UserViewSet(viewsets.GenericViewSet):
     def participant(self, request):
         user = request.user
 
-        if not request.data.get[university]:
-            request.data.get[university] = ""
+        if request.data.get['university'] is None:
+            request.data.get['university'] = ""
+        if request.data.get['accepted'] is None:
+            request.data.get['accepted'] = True
 
         try:
             profile = ParticipantProfile(user=user, university=request.data.get[university])
