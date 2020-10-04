@@ -1,24 +1,16 @@
 from django.db import models
-
-class User(models.Model):
-    username = models.CharField(max_length=50)
-    email = models.CharField(max_length=500)
-    first_name = models.CharField(max_length=500)
-    last_name = models.CharField(max_length=500)
-    last_login = models.TimeField(max_length=500)
-    date_joined = models.TimeField(max_length=500)
-    token = models.CharField(max_length=500, blank=True)
+from django.contrib.auth.models import User
 
 class ParticipantProfile(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, related_name='participant', on_delete=models.CASCADE)
     university = models.CharField(max_length=500, blank=True)
-    accepted = models.BooleanField(max_length=500, default=True, blank=True, null=False)
+    accepted = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_At = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
 class InstructorProfile(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, related_name='instructor', on_delete=models.CASCADE)
     company = models.CharField(max_length=500, blank=True)
-    year = models.PositiveIntegerField(null=True)
+    year = models.PositiveSmallIntegerField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_At = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField(auto_now=True)

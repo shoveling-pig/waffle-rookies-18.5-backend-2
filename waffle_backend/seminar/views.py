@@ -1,31 +1,45 @@
-from django.shortcuts import render
-from rest_framework import status, viewsets
-from rest_framework.decorators import action
 import datetime
-from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
+from django.shortcuts import render
 from django.db.models import Prefetch
-from user.models import User, ParticipantProfile
+from rest_framework import status, viewsets
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from user.models import User, ParticipantProfile, InstructorProfile
+from user.permissions import IsInstructor, IsParticipant
 from seminar.models import Seminar, UserSeminar
 from seminar.serializers import SeminarSerializer, MiniSeminarSerializer
 
 class SeminarViewSet(viewsets.GenericViewSet):
     queryset = Seminar.objects.prefetch_related(
-        Prefetch('userSeminar', queryset=UserSeminar.objects.select_related('seminar'), to_attr='seminar_userSeminar')
+        Prefetch('user_seminars', queryset=UserSeminar.objects.select_related('seminar'), to_attr='seminar_userSeminar')
     )
     serializer_class = SeminarSerializer
     permission_classes = (IsAuthenticated(),)
+
+    def get_permissions(self):
+        if self.action in ('create', 'update'):
+            return (IsInstructor(), )
+        elif self.action == 'user' and self.request.method == 'DELETE':
+            return (IsParticipant(), )
+        return self.permission_classes
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return MiniSeminarSerializer
+        return self.serializer_class
 
     # GET /api/v1/seminar/
     # GET /api/v1/seminar/?name={name}
     # GET /api/v1/seminar/?order=earliest
     def list(self, request):
         seminars = self.get_queryset()
-
-        name = self.context.get('request').query_params.get('name')
-        order = self.contet.get('request').query_params.get('order')
+        name = request.query_params.get('name')
+        order = request.query_params.get('order')
 
         if name is not None:
-            seminars = seminars.filter(name__contains==name)
+            seminars = seminars.filter(name__contains=name)
         if order is not None:
             if order == 'earliest':
                 seminars = seminars.order_by('-created_at')
@@ -45,20 +59,20 @@ class SeminarViewSet(viewsets.GenericViewSet):
     # PUT /api/v1/seminar/{seminar_id}/
     def update(self, request, pk=None):
         user = request.user
+        seminar = self.get_object()
 
-        try:
-            seminar = Seminar.objects.get(pk=pk)
-        except Seminar.DoesNotExist:
-            return Response({"error": "The seminar does not exist"}, status=status.HTTP_404_NOT_FOUND)
+        if not user.user_seminars.filter(seminar=seminar, role='instructor').exists():
+            return Response({"error": "You're not the instructor of this seminar"}, status=status.HTTP_400_BAD_REQUEST)
 
-        userseminar = UserSeminar.objects.filter(seminar=seminar, user=user)
-        serializer = self.get_serializer(data=request.data)
+        data = request.data
+        serializer = self.get_serializer(seminar, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
 
-        if request.data.get['capacity'] < serializer.get_participant_count(seminar):
-            return Response({"error": "capacity is smaller than participant count"}, status=status.HTTP_400_BAD_REQUEST)
-        if userseminar.role is not 'instructor':
-            return Response({"error": "You are not the instructor of this seminar"}, status=status.HTTP_403_FORBIDDEN)
+        participant_count = seminar.user_seminars.filter(role=UserSeminar.PARTICIPANT, is_active=True).count()
+        if data.get('capacity') and int(data.get('capacity')) < participant_count:
+            return Response({"error": "Capacity should be bigger than the number of participants"}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer.update(seminar, serializer.validated_data)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -125,35 +139,15 @@ class SeminarViewSet(viewsets.GenericViewSet):
     # POST /api/v1/seminar/
     def create(self, request):
         user = request.user
+
+        if user.user_seminars.filter(role='instructor').exists():
+            return Response({"error": "You are already the instructor of other seminar"}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        name = request.data.get('name')
-        capacity = request.data.get('capacity')
-        count = request.data.get('count')
-        time = request.data.get('time')
-        online = request.data.get('online')
-
-        if not hasattr(user, 'instructor'):
-            return Response({"error": "Only instructors can use this method."}, status=status.HTTP_403_FORBIDDEN)
-        if not (name and capacity and count and time):
-            return Response({"error": "name, capacity, count and time must filled"}, status=status.HTTP_400_BAD_REQUEST)
-        if not capacity.isdigit() or not count.isdigit():
-            return Response({"error": "capacity and count should be a number"}, status=status.HTTP_400_BAD_REQUEST)
-        if capacity<=0 or count<=0:
-            return Response({"error": "capacity and count should be positive integer"}, status=status.HTTP_400_BAD_REQUEST)
-        if name == '\0':
-            return Response({"error": "name is not valid"}, status=status.HTTP_400_BAD_REQUEST)
-        if online is None:
-            request.data.get['online'] = ""
-        try:
-            datetime.datetime.strptime(time, '%H:%M')
-        except:
-            Response({"error": "time is not valid"}, status=status.HTTP_400_BAD_REQUEST)
-
         seminar = serializer.save()
-        userseminar = UserSeminar.objects.create(user=user, seminar=seminar, joined_at=datetime.datetime.now())
-        userseminar.save()
+
+        UserSeminar.objects.create(user=user, seminar=seminar, role=UserSeminar.INSTRUCTOR)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
