@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -32,15 +33,30 @@ class SeminarViewSet(viewsets.GenericViewSet):
         name = request.query_params.get('name')
         order = request.query_params.get('order')
 
-        seminars = self.get_queryset()
         if name:
+            seminars = self.get_queryset()
             seminars = seminars.filter(name__icontains=name)
-        if order == 'earliest':
-            seminars = seminars.order_by('-created_at')
+            data = self.get_serializer(seminars, many=True).data
         else:
-            seminars = seminars.order_by('created_at')
+            if order == 'earliest':
+                cache_key = 'seminar-list-earliest'
+                data = cache.get(cache_key)
+            else:
+                cache_key = 'seminar-list'
+                data = cache.get(cache_key)
 
-        return Response(SeminarSerializer(seminars, many=True).data, status=status.HTTP_200_OK)
+            if not data:
+                seminars = self.get_queryset()
+
+                if order == 'earliest':
+                    seminars = seminars.order_by('created_at')
+                else:
+                    seminars = seminars.order_by('-created_at')
+
+                data = self.get_serializer(seminars, many=True).data
+                cache.set(cache_key, data, timeout=600)
+
+        return Response(data)
 
     # GET /api/v1/seminar/{seminar_id}/
     def retrieve(self, request, pk=None):
