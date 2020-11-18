@@ -24,10 +24,17 @@ BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
 SECRET_KEY = '0^k@b1ln%g7l_*6xr*&5&vhgp7r$i&n-db#_!(8*a$n2y1hf4='
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 DEBUG_TOOLBAR = os.getenv('DEBUG_TOOLBAR') in ('true', 'True')
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '52.79.218.114',
+    'ec2-52-79-218-114.ap-northeast-2.compute.amazonaws.com',
+    'localhost',
+    '127.0.0.1',
+    'waffle-backend-minchan.shop',
+    'www.waffle-backend-minchan.shop',
+]
 
 
 # Application definition
@@ -99,12 +106,11 @@ WSGI_APPLICATION = 'waffle_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'HOST': 'localhost',
+        'HOST': 'waffle-backend-db.c5ilhjzi7zf5.ap-northeast-2.rds.amazonaws.com',
         'PORT': 3306,
         'NAME': 'waffle_backend_assignment_2',
         'USER': 'waffle_backend',
-        'PASSWORD': '',
-        'TEST' : {'NAME':'test_waffle_backend'},
+        'PASSWORD': 'seminar',
     }
 }
 
@@ -152,3 +158,4 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
